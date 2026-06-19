@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>西卡自动发货</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #0a0c10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            padding: 1rem;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 400px;
+            background: #13161c;
+            border-radius: 40px;
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.5), 0 2px 5px -2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            padding: 2rem 1.5rem 2rem 1.5rem;
+            animation: cardSlideIn 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
+        }
+
+        @keyframes cardSlideIn {
+            0% {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.98);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .main-title {
+            text-align: center;
+            font-size: 1.85rem;
+            font-weight: 640;
+            color: #f0f3fa;
+            margin-bottom: 1.8rem;
+            animation: fadeInText 0.45s ease-out 0.1s both;
+        }
+
+        @keyframes fadeInText {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .input-group {
+            width: 100%;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 0.9rem 1rem;
+            font-size: 1rem;
+            font-weight: 400;
+            color: #eef2ff;
+            background: #1e222b;
+            border: 1.5px solid #2a2f3a;
+            border-radius: 28px;
+            outline: none;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+            animation: fadeInUp 0.45s ease-out 0.2s both;
+        }
+
+        .input-field:focus {
+            border-color: #6c7a9e;
+            background: #252a35;
+            box-shadow: 0 0 0 4px rgba(108, 122, 158, 0.2);
+        }
+
+        .input-field::placeholder {
+            color: #6a6f7c;
+        }
+
+        .input-hint {
+            margin-top: 0.65rem;
+            font-size: 0.75rem;
+            color: #9aa2b5;
+            text-align: left;
+            padding-left: 0.5rem;
+            animation: fadeInUp 0.45s ease-out 0.3s both;
+        }
+
+        .submit-btn {
+            width: 100%;
+            margin-top: 1.9rem;
+            padding: 0.9rem 1rem;
+            font-size: 1rem;
+            font-weight: 590;
+            color: white;
+            background: #2c313e;
+            border: none;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.45s ease-out 0.4s both;
+        }
+
+        .submit-btn:active {
+            background: #3c4355;
+            transform: scale(0.97);
+        }
+
+        .submit-btn.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: #232732;
+            transform: none;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Toast 消息提示 (非模态) */
+        .toast-msg {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            background: rgba(0, 0, 0, 0.88);
+            backdrop-filter: blur(16px);
+            color: #ffffff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding: 1rem 2rem;
+            border-radius: 60px;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            pointer-events: none;
+            z-index: 1500;
+            white-space: nowrap;
+            font-family: inherit;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            border: 0.5px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .toast-msg.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            animation: toastPop 0.3s ease-out forwards;
+        }
+
+        @keyframes toastPop {
+            0% {
+                transform: translate(-50%, -50%) scale(0.92);
+                opacity: 0;
+            }
+            60% {
+                transform: translate(-50%, -50%) scale(1.04);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* 成功弹窗 (新窗口/模态) */
+        .success-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeInBg 0.3s ease;
+        }
+
+        .success-modal.show {
+            display: flex;
+        }
+
+        @keyframes fadeInBg {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .success-card {
+            width: 90%;
+            max-width: 360px;
+            background: #1a1e28;
+            border-radius: 48px;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            box-shadow: 0 30px 40px rgba(0, 0, 0, 0.6);
+            border: 0.5px solid rgba(255, 255, 255, 0.08);
+            animation: scaleUp 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.2);
+        }
+
+        @keyframes scaleUp {
+            from {
+                transform: scale(0.92);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-icon {
+            font-size: 3.2rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .success-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #4caf50;
+            margin-bottom: 0.8rem;
+        }
+
+        .cdk-box-modal {
+            background: #0f1119;
+            border-radius: 16px;
+            padding: 1rem;
+            margin: 1rem 0;
+            border: 1px solid #3a4050;
+        }
+
+        .cdk-label-modal {
+            font-size: 0.7rem;
+            color: #9aa2b5;
+            letter-spacing: 1px;
+            margin-bottom: 0.3rem;
+        }
+
+        .cdk-value-modal {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #ffcd7e;
+            letter-spacing: 1px;
+            word-break: break-all;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .tutorial-link-modal {
+            display: inline-block;
+            color: #6c7a9e;
+            font-size: 0.8rem;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            background: #0f1119;
+            border: 1px solid #2a2f3a;
+            margin-top: 0.2rem;
+            transition: all 0.2s;
+            word-break: break-all;
+        }
+
+        .tutorial-link-modal:active {
+            background: #1a1e28;
+            transform: scale(0.97);
+        }
+
+        .tutorial-link-modal span {
+            color: #8aa3d9;
+        }
+
+        .close-modal-btn {
+            width: 100%;
+            margin-top: 1.2rem;
+            padding: 0.8rem;
+            font-size: 1rem;
+            font-weight: 600;
+            background: #2c313e;
+            color: white;
+            border: none;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .close-modal-btn:active {
+            background: #3c4355;
+            transform: scale(0.97);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                padding: 1.6rem 1.2rem;
+            }
+            .cdk-value-modal {
+                font-size: 0.85rem;
+            }
+            .success-card {
+                padding: 1.5rem;
+            }
+            .toast-msg {
+                font-size: 1rem;
+                padding: 0.8rem 1.5rem;
+                white-space: normal;
+                max-width: 80%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="main-title">西卡自动发货</div>
+    <div class="input-group">
+        <input type="text" class="input-field" id="gameId" placeholder="请输入ID或编号" autocomplete="off" spellcheck="false">
+        <div class="input-hint">请输入ID或编号</div>
+        <button class="submit-btn" id="submitBtn">提交</button>
+    </div>
+</div>
+
+<!-- Toast 消息浮层 (居中，非模态) -->
+<div id="toastMsg" class="toast-msg">检测付款状态中...</div>
+
+<!-- 付款成功弹窗 (模态) -->
+<div class="success-modal" id="successModal">
+    <div class="success-card">
+        <div class="success-icon">✅</div>
+        <div class="success-title">付款成功</div>
+        <div class="cdk-box-modal">
+            <div class="cdk-label-modal">🎮 您的CDK</div>
+            <div class="cdk-value-modal" id="cdkValueModal">---- ---- ---- ----</div>
+        </div>
+        <a class="tutorial-link-modal" id="tutorialLinkModal" href="#" target="_blank">
+            📖 使用教程：<span id="tutorialUrlModal">https://drive.uc.cn/s/5dacd75a7fe34</span>
+        </a>
+        <button class="close-modal-btn" id="closeModalBtn">知道了</button>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const inputEl = document.getElementById('gameId');
+        const submitBtn = document.getElementById('submitBtn');
+        const toastEl = document.getElementById('toastMsg');
+        const successModal = document.getElementById('successModal');
+        const cdkValueModal = document.getElementById('cdkValueModal');
+        const tutorialLinkModal = document.getElementById('tutorialLinkModal');
+        const tutorialUrlModal = document.getElementById('tutorialUrlModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+
+        let loadingTimer = null;
+        let toastTimer = null;
+        let isSubmitting = false;
+
+        const TUTORIAL_URL = "https://drive.uc.cn/s/5dacd75a7fe34";
+
+        // 生成CDK: 4组*4位 (排除易混淆字符)
+        function generateCDK() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let segments = [];
+            for (let i = 0; i < 4; i++) {
+                let seg = '';
+                for (let j = 0; j < 4; j++) {
+                    seg += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                segments.push(seg);
+            }
+            return segments.join('-');
+        }
+
+        // 显示Toast消息 (居中，可自动消失)
+        function showToast(text, duration = 3000) {
+            if (toastTimer) clearTimeout(toastTimer);
+            toastEl.textContent = text;
+            toastEl.classList.remove('show');
+            void toastEl.offsetWidth;
+            toastEl.classList.add('show');
+            toastTimer = setTimeout(() => {
+                toastEl.classList.remove('show');
+            }, duration);
+        }
+
+        // 隐藏Toast (立即)
+        function hideToast() {
+            if (toastTimer) {
+                clearTimeout(toastTimer);
+                toastTimer = null;
+            }
+            toastEl.classList.remove('show');
+        }
+
+        // 设置按钮加载状态
+        function setLoading(loading) {
+            if (loading) {
+                isSubmitting = true;
+                submitBtn.classList.add('disabled');
+                submitBtn.disabled = true;
+                const oldSpinner = submitBtn.querySelector('.spinner');
+                if (oldSpinner) oldSpinner.remove();
+                const spinner = document.createElement('span');
+                spinner.className = 'spinner';
+                submitBtn.appendChild(spinner);
+            } else {
+                isSubmitting = false;
+                submitBtn.classList.remove('disabled');
+                submitBtn.disabled = false;
+                const spinner = submitBtn.querySelector('.spinner');
+                if (spinner) spinner.remove();
+            }
+        }
+
+        // 显示成功弹窗 (模态)
+        function showSuccessModal(cdk) {
+            cdkValueModal.textContent = cdk || '---- ---- ---- ----';
+            tutorialLinkModal.href = TUTORIAL_URL;
+            tutorialUrlModal.textContent = TUTORIAL_URL;
+            successModal.classList.add('show');
+        }
+
+        // 关闭成功弹窗
+        function closeSuccessModal() {
+            successModal.classList.remove('show');
+        }
+
+        // 主流程
+        function handleSubmit() {
+            if (isSubmitting) return;
+            const idValue = inputEl.value.trim();
+            if (idValue === "") {
+                // 输入框抖动反馈
+                inputEl.style.transform = 'translateX(0)';
+                inputEl.style.transition = 'transform 0.1s';
+                inputEl.style.transform = 'translateX(4px)';
+                setTimeout(() => {
+                    if (inputEl) inputEl.style.transform = '';
+                }, 120);
+                return;
+            }
+
+            // 1. 开始加载
+            setLoading(true);
+            // 2. 显示Toast: "检测付款状态中..."
+            showToast("检测付款状态中...", 4000);
+
+            // 3. 4秒后切换为"付款成功"，并弹出模态窗
+            if (loadingTimer) clearTimeout(loadingTimer);
+            loadingTimer = setTimeout(() => {
+                // 隐藏加载状态
+                setLoading(false);
+                // 隐藏当前toast（"检测付款状态中..."）
+                hideToast();
+                // 生成CDK
+                const newCdk = generateCDK();
+                // 显示成功弹窗（模态）
+                showSuccessModal(newCdk);
+                loadingTimer = null;
+            }, 4000);
+        }
+
+        // 事件绑定
+        submitBtn.addEventListener('click', handleSubmit);
+        inputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSubmit();
+            }
+        });
+
+        closeModalBtn.addEventListener('click', closeSuccessModal);
+        // 点击模态背景关闭（增强体验）
+        successModal.addEventListener('click', (e) => {
+            if (e.target === successModal) {
+                closeSuccessModal();
+            }
+        });
+
+        // 预设教程链接
+        tutorialLinkModal.href = TUTORIAL_URL;
+        tutorialUrlModal.textContent = TUTORIAL_URL;
+    })();
+</script>
+</body>
+</html>
